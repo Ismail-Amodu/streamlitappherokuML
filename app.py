@@ -13,101 +13,74 @@ energy_kiln_data = pd.read_csv('energy_kiln_data.csv')
 co2_importance_df = pd.read_csv('co2_feature_importance.csv')
 co2_kiln_data = pd.read_csv('co2_kiln_data.csv')
 
-
-def predict_energy_consumption(input_data):
+def predict(input_data, prediction_type):
     """
-    Predicts energy consumption and provides recommendations.
+    Predicts energy consumption or CO2 emission based on user input.
 
     Args:
         input_data: A tuple containing the input features.
+        prediction_type: "Energy Consumption" or "CO2 Emission".
 
     Returns:
         A string containing the prediction and recommendation.
     """
 
     input_array = np.array(input_data).reshape(1, -1)
-    prediction = best_energy_model.predict(input_array)[0]
+    model = best_energy_model if prediction_type == "Energy Consumption" else best_co2_model
+    importance_df = energy_importance_df if prediction_type == "Energy Consumption" else co2_importance_df
+
+    prediction = model.predict(input_array)[0]
 
     recommendation = ""
-    if prediction >= 1050:
-        recommendation = "Recommendation: To reduce energy consumption, consider the following:\n"
-        for index, row in energy_importance_df.iterrows():
+	threshold = get_threshold(prediction_type)
+    if prediction >= model_threshold(prediction_type):  # Define threshold function based on model
+        recommendation = f"Recommendation: To reduce {prediction_type.lower()}, consider the following:\n"
+        for index, row in importance_df.iterrows():
             feature_name = row['Feature']
             feature_value = input_data[index]
             if row['Importance'] > 0.1:
-                if feature_value > energy_kiln_data[feature_name].mean():
+                if feature_value > getattr(energy_kiln_data, feature_name).mean() if prediction_type == "Energy Consumption" else getattr(co2_kiln_data, feature_name).mean():
                     recommendation += f"- Reduce {feature_name} (current value: {feature_value:.2f})\n"
                 else:
                     recommendation += f"- Increase {feature_name} (current value: {feature_value:.2f})\n"
     else:
-        recommendation = "The input fields give an efficient energy consumption. Proceed with the Kiln process."
-
-    return f"Predicted Energy Consumption: {prediction:.2f} kWh/t-clinker\n{recommendation}"
-
-
-def predict_co2_emission(input_data):
-    """
-    Predicts CO2 emission and provides recommendations.
-
-    Args:
-        input_data: A tuple containing the input features.
-
-    Returns:
-        A string containing the prediction and recommendation.
-    """
-
-    input_array = np.array(input_data).reshape(1, -1)
-    prediction = best_co2_model.predict(input_array)[0]
-
-    recommendation = ""
-    if prediction >= 700:
-        recommendation = "Recommendation: To reduce CO2 emission, consider the following:\n"
-        for index, row in co2_importance_df.iterrows():
-            feature_name = row['Feature']
-            feature_value = input_data[index]
-            if row['Importance'] > 0.1:  # Threshold for significant features
-                if feature_value > co2_kiln_data[feature_name].mean():
-                    recommendation += f"- Reduce {feature_name} (current value: {feature_value:.2f})\n"
-                else:
-                    recommendation += f"- Increase {feature_name} (current value: {feature_value:.2f})\n"
+        recommendation = f"The input fields give a {prediction_type.lower()} value. Proceed with the Kiln process."
+		
+def get_threshold(prediction_type):
+    if prediction_type == "Energy Consumption":
+        return 1050  # Adjust threshold as needed
+    elif prediction_type == "CO2 Emission":
+        return 700  # Adjust threshold as needed
     else:
-        recommendation = "The input fields give a reduced CO2 emission. The adjustment enhances sustainability by reducing CO2 emission in cement plant."
+        raise ValueError("Invalid prediction type")
 
-    return f"Predicted CO2 Emission: {prediction:.2f} kg/ton-cement\n{recommendation}"
-Power (Kw)	Power Consumption (MWH)	Power Consumed (KWt/h)	Absorbed Power (Kw)	Power Consumption (Kw) Max.	Power (rotary drive) Kw
 
 # Streamlit App Interface
 st.title("Cement Kiln Prediction System")
 
-# Prediction Type Selection Menu
 prediction_type = st.selectbox("Select Prediction Type", options=["Energy Consumption", "CO2 Emission"])
-Power (Kw)	Power Consumption (MWH)	Power Consumed (KWt/h)	Absorbed Power (Kw)	Power Consumption (Kw) Max.	Power (rotary drive) Kw
 
-# User Input Fields (Displayed based on selection)
 if prediction_type == "Energy Consumption":
-	# Input features for Energy Consumption model
-    Power = st.number_input("Power (Kw)", min_value=1400, max_value=1600)
-    Power_Consumption = st.number_input("Power Consumption (MWH)", min_value=500, max_value=1000)
-    Power_Consumed = st.number_input("Power Consumed (KWt/h)", min_value=1400, max_value=1600)
-    Absorbed_Power = st.number_input("Absorbed Power (Kw)", min_value=500, max_value=1000)
-	Power_Consumption_Max = st.number_input("Power Consumption (Kw) Max.", min_value=1400, max_value=1600)
-    Power_rotary_drive = st.number_input("Power (rotary drive) Kw", min_value=500, max_value=1000)
-    
-    user_input = (Power, Power_Consumption, Power_Consumed, Absorbed_Power, Power_Consumption_Max, Power_rotary_drive)  
+    Power = st.number_input("Power (Kw)", min_value=4000, max_value=6000)
+    Power_Consumption = st.number_input("Power Consumption (MWH)", min_value=300000, max_value=500000)
+    Power_Consumed = st.number_input("Power Consumed (KWt/h)", min_value=4000, max_value=6000)
+    Absorbed_Power = st.number_input("Absorbed Power (Kw)", min_value=3500, max_value=5500)
+    Power_Consumption_Max = st.number_input("Power Consumption (Kw) Max.", min_value=6500, max_value=8000)
+    Power_rotary_drive = st.number_input("Power (rotary drive) Kw", min_value=500, max_value=800)
+
+    user_input = (Power, Power_Consumption, Power_Consumed, Absorbed_Power, Power_Consumption_Max, Power_rotary_drive)
 
 elif prediction_type == "CO2 Emission":
-    # Input features for CO2 Emission model
-    Limestone_Content = st.number_input("Limestone Content (%)", min_value=75, max_value=95)
-    Clay_Content = st.number_input("Clay Content (%)", min_value=5, max_value=25)
-	Silica_Content = st.number_input("Silica Content (%)", min_value=1, max_value=10)
-    Alumina_Content = st.number_input("Alumina Content (%)", min_value=1, max_value=7)
-	Iron_Oxide_Content = st.number_input("Iron Oxide Content (%)", min_value=0.5, max_value=5)
-    Fuel_Consumption = st.number_input("Fuel Consumption (kg/ton clinker)", min_value=100, max_value=150)
-	Electricity_Consumption = st.number_input("Electricity Consumption (kWh/ton clinker)", min_value=80, max_value=120)
-	Kiln_Thermal_Efficiency = st.number_input("Kiln Thermal Efficiency (%)", min_value=70, max_value=90)
-    Clinker_Ratio = st.number_input("Clinker Ratio (%)", min_value=65, max_value=85)
-   
-    user_input = (Limestone_Content, Clay_Content, Silica_Content, Alumina_Content, Iron_Oxide_Content, Fuel_Consumption, Electricity_Consumption, Kiln_Thermal_Efficiency, Clinker_Ratio)  
+    Kiln_Temperature = st.number_input("Kiln Temperature (°C)", min_value=1325, max_value=1375)
+    Fuel_Consumption = st.number_input("Fuel Consumption (kg/h)", min_value=175, max_value=225)
+    Raw_Meal_Composition = st.number_input("Raw Meal Composition (% Limestone))", min_value=82, max_value=88)
+    Clinker_Production_Rate = st.number_input("Clinker Production Rate (tons/h)", min_value=80, max_value=110)
+    Oxygen_Levels = st.number_input("Oxygen Levels (%)", min_value=3.2, max_value=4.2)
+    Kiln_Pressure = st.number_input("Kiln Pressure (bar)", min_value=13.5, max_value=16.5)
+    Air_Flow_Rate = st.number_input("Air Flow Rate (m³/h)", min_value=1750, max_value=2250)
+    Fuel = st.number_input("Fuel", min_value=0, max_value=1)
+
+    user_input = (Kiln_Temperature, Fuel_Consumption, Raw_Meal_Composition, Clinker_Production_Rate, Oxygen_Levels, Kiln_Pressure, Air_Flow_Rate, Fuel)
 
 # Make predictions based on the selected prediction type
 if prediction_type == "Energy Consumption":
